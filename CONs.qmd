@@ -27,8 +27,8 @@ library(gtsummary)
 library(patchwork)
 library(glue)
 library(fuzzyjoin)
-df <- read_csv("CONTargetList_filled.csv")
-wise <- read_csv("table_irsa_catalog_search_results.csv")
+df <- read_csv("data/CONTargetList_filled.csv")
+wise <- read_csv("data/table_irsa_catalog_search_results.csv")
 unique(df$Citation)
 ```
 
@@ -129,10 +129,17 @@ p4 <- targets %>%
 p1 / p2 / p3 / p4
 ```
 
-The primary 
+There are three areas that our results relate to:
+
+1. `Distance`
+   - This sample has a distance bias. Specifically, dim, distant targets are not included in our sample. With that in mind, our results indicate that CONs, CT AGN, and LIRGs have similar distance distributions.
+2. `Luminosity`
+   - U\LIRGs are powered by star bursts and CT AGN are powered by accreting black holes. Our results indicate that the power source of CONs may be more similar in strength to U/LIRGs, which hints at the possibility of star bursts being the domanant mechanism of CONs.
+3. `Mass`
+   - From our results, CONs, CT AGN, and LIRGs all have similar mass distributions. This could indicate that the three galaxy types are different stages of the same process.
 
 # Data Access
-Data can be access at 
+Data can be access at <https://github.com/wastjohn/CONs>.
 
 
 <!-- # Analysis

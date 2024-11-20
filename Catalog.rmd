@@ -1,0 +1,211 @@
+---
+output: pdf_document
+title: CON Data Analysis
+author: Will St. John
+date: April 30, 2024
+---
+
+# Libraries
+This code loads in the required r libraries to streamline the data reduction process.
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(googlesheets4)
+library(ggplot2)
+```
+
+# Data
+In this section, I use the `googlesheets4` library to read in the tidy data from the Google Sheet.
+```{r, warning=FALSE, message=FALSE}
+# Read the data from the Google Sheet
+df <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1SOdDMR_2ekxp_qxyp4vmCBdVigUE3S7GMWIfGzz4r2E/edit#gid=356557056", sheet = "TidyData")
+```
+
+# Data Cleaning
+A new column of average masses from the three mass columns (`LogM_U`, `LogM_Leroy`, and `LogM_Other`) is made. A summary of the data is then printed to the console.
+```{r, warning=FALSE, message=FALSE, results = 'hide' }
+# Data Cleaning
+df$LogM <- rowMeans(df[, c("LogM_U", "LogM_Leroy", "LogM_Other")], na.rm = TRUE)
+summary(df)
+
+df$L_Akylas <- df$`L_14-195keV_Akylas` * 1e42 / 3.826e33 / 1e11
+df$type <- ifelse(df$CONS == TRUE, "CON", "LIRG")
+df$type <- ifelse(df$CT_AGN_Akylas == TRUE, "CT_AGN", df$type)
+
+df$L <- ifelse(!is.na(df$L_IR_Falstad), df$L_IR_Falstad, NA)
+df$L <- ifelse(!is.na(df$L_Akylas), df$L_Akylas, df$L)
+
+
+colnames(df)
+df$BeamSize_Falstad
+df$BeamSize_Falstad <- strsplit(df$BeamSize_Falstad, "x")
+df$BeamSize_Falstad <- sapply(
+        df$BeamSize_Falstad,
+        function(x) as.numeric(x[1]) * as.numeric(x[2]))
+df$BeamSize_Falstad <- sqrt(df$BeamSize_Falstad) * df$Hubble_Distance_Mpc / 206265
+df$BeamSize_Falstad
+```
+
+# Data Analysis
+## Bias Comparison
+```{r, warning=FALSE, message=FALSE}
+df %>% filter(!is.na(BeamSize_Falstad)) %>%
+        ggplot(aes(x = Hubble_Distance_Mpc / 1e6, y = BeamSize_Falstad / 1e6, color = CONS)) +
+        geom_point(size = 3) +
+        ggtitle("Beam Size [pc] vs Distance [pc]") +
+        xlab("Hubble Distance [pc]") +
+        ylab("Linear Beam Size Proxy [pc]")
+
+df %>% filter(!is.na(BeamSize_Falstad)) %>%
+        ggplot(aes(x = L_IR_Falstad, y = BeamSize_Falstad / 1e6, color = CONS)) +
+        geom_point(size = 3) +
+        ggtitle("Beam Size [pc] vs Luminosity [10^11 L_sun]") + 
+        xlab("Luminosity [10^11 L_sun]") +
+        ylab("Linear Beam Size Proxy [pc]")
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+df %>% ggplot(aes(x = Hubble_Distance_Mpc, y = L, color = type)) +
+        geom_point(size = 3) +
+        ggtitle("Luminosity (L) vs. Hubble Distance (Hubble_Distance_Mpc)")
+```
+
+```{r, warning=FALSE, message=FALSE}
+df %>% ggplot(aes(x = Hubble_Distance_Mpc, color = type, fill = type)) +
+        # geom_histogram(alpha = 0.5) +
+        geom_density(alpha = 0.5) +
+        ggtitle("Hubble Distance Density Plot")
+```
+
+```{r, warning=FALSE, message=FALSE}
+df %>% ggplot(aes(x = L, color = type, fill = type)) +
+        # geom_histogram(alpha = 0.5) +
+        geom_density(alpha = 0.5) +
+        ggtitle("Luminosity Density Plot") +
+        coord_trans(x = "log10")
+
+```
+
+<!-- 
+## Scatter Plot
+In this section, I create bivariate data visualizations for different variables in the data set. The first is a scatter plot of the log of the average mass (`LogM`) and the Hubble distance in Mpc (`Hubble_Distance_Mpc`). 
+
+```{r, warning=FALSE, message=FALSE, include=FALSE}
+# Scatter Plot
+df %>% ggplot(
+        aes(x = LogM,
+        y = Hubble_Distance_Mpc,
+        color = CONS)) +
+        geom_point() +
+        ggtitle("Log of Average Mass (LogM) vs. Hubble Distance (Hubble_Distance_Mpc)")
+```
+
+The second is a scatter plot of the log of the average mass (`LogM`) and the Falstad et al. distance in Mpc (`D_L_Falstad`) with the size of the points representing the infrared luminosity in solar luminosities (`L_IR_Falstad`). 
+```{r, warning=FALSE, message=FALSE, include=FALSE}
+df2 <- df %>%
+        filter(!is.na(LogM) & !is.na(D_L_Falstad)) %>%
+        select(LogM, D_L_Falstad, L_IR_Falstad, CONS)
+
+df2 %>% ggplot(
+        aes(x = LogM,
+        y = D_L_Falstad,
+        color = CONS, size = L_IR_Falstad)) +
+        geom_point() +
+        ggtitle("Log of Average Mass (LogM) vs. Falstad Distance (D_L_Falstad)")
+```
+
+The third is a scatter plot of the log of the average mass (`LogM`) and the infrared luminosity in solar luminosities (`L_IR_Falstad`) with the size of the points representing the Falstad distance in Mpc (`D_L_Falstad`).
+```{r, warning=FALSE, message=FALSE, include=FALSE}
+df2 %>% ggplot(
+        aes(x = LogM,
+        y = L_IR_Falstad,
+        color = CONS, size = D_L_Falstad)) +
+        geom_point() +
+        ggtitle("Log of Average Mass (LogM) vs. Infrared Luminosity (L_IR_Falstad)")
+```
+
+## Density Plot and Histogram
+In this section, I create univariate data visualizations for different variables in the data. Specifically, I show density plots and histograms for the log of the average mass (`LogM`) for the entire data ...
+
+```{r, warning=FALSE, message=FALSE, include=FALSE}
+# Density Plot and Histogram
+df %>% ggplot(
+        aes(x = LogM, color = CONS, fill = CONS)) +
+        geom_density(alpha = 0.5) +
+        ggtitle("Log of Average Mass (LogM)") +
+        geom_histogram(alpha = 0.2) # optional
+```
+
+... the log of the average mass (`LogM`) for the data from the Falstad et al paper ...
+
+```{r, warning=FALSE, message=FALSE, include=FALSE}
+df2 %>% ggplot(
+        aes(x = LogM, color = CONS, fill = CONS)) +
+        geom_density(alpha = 0.5) +
+        ggtitle("Log of Average Mass (LogM) for Falstad et al. paper") +
+        geom_histogram(alpha = 0.2) # optional
+```
+... the Falstad et al. distance in Mpc (`D_L_Falstad`) ...
+```{r, warning=FALSE, message=FALSE, include=FALSE}
+df2 %>% ggplot(
+        aes(x = D_L_Falstad, color = CONS, fill = CONS, title = "test")) +
+        geom_density(alpha = 0.5) +
+        ggtitle("Falstad Distance (D_L_Falstad)")
+        # geom_histogram(alpha = 0.2) # optional
+```
+... and the infrared luminosity in solar luminosities (`L_IR_Falstad`) from the Falstad paper.
+
+```{r, warning=FALSE, message=FALSE, include=FALSE}
+df2 %>% ggplot(
+        aes(x = L_IR_Falstad, color = CONS, fill = CONS)) +
+        geom_density(alpha = 0.5) +
+        ggtitle("Infrared Luminosity (L_IR_Falstad)") +
+        geom_histogram(alpha = 0.2) # optional
+```
+
+
+## Hierarchical Clustering
+```{r, warning=FALSE, message=FALSE, include=FALSE}
+# Hierarchical Clustering
+df_good <- df %>%
+        filter(!is.na(LogM) & !is.na(Hubble_Distance_Mpc)) %>%
+        select(Galaxy, LogM, Hubble_Distance_Mpc, CONS)
+
+df_dist_mass <- df_good %>%
+        select(LogM, Hubble_Distance_Mpc)
+
+
+cluster_complete <- hclust(dist(df_dist_mass), method = "complete")
+cluster_single <- hclust(dist(df_dist_mass), method = "single")
+cluster_average <- hclust(dist(df_dist_mass), method = "average")
+cluster_centroid <- hclust(dist(df_dist_mass), method = "centroid")
+
+plot(cluster_complete, labels = as.character(df_good$CONS))
+plot(cluster_single, labels = as.character(df_good$CONS))
+plot(cluster_average, labels = as.character(df_good$CONS))
+plot(cluster_centroid, labels = as.character(df_good$CONS))
+```
+
+## Partitioning Around Medoids (PAM)
+```{r, warning=FALSE, message=FALSE, include=FALSE}
+## Partitioning Around Medoids (PAM)
+pam_gal <- cluster::pam(df_dist_mass, k = 6)
+summary(pam_gal)
+plot(pam_gal)
+pam_gal$medoids
+
+df %>% ggplot(
+        aes(x = LogM,
+        y = Hubble_Distance_Mpc,
+        color = CONS)) +
+        geom_point() +
+        geom_point(
+                data = as.data.frame(pam_gal$medoids),
+                aes(x = LogM, y = Hubble_Distance_Mpc),
+                color = "black",
+                size = 3)
+```
+
+ -->
+
+

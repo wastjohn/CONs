@@ -1,0 +1,157 @@
+---
+title: "CON Data Analysis"
+subtitle: "How do CONs fit in to Galaxy Evolution?"
+format: 
+    html:
+        embed-resources: true
+        toc: true
+eval: true # change this to "true" if you want to render a complete .qmd    
+---
+# Intro
+- My name is Will St. John and I am a 3rd year undergrad (prediploma) student at Macalester College in St. Paul, Minnesota.
+- The goal of this project was to construct and analyze a sample of CONs, CT AGN, sub-LIRGS, and U/LIRGS to determine if any possible relationships could be indentified between CONs and the other galaxy types. 
+- I was advised by John (Jay) S Gallagher III, Distinguished Visiting Physics and Astronomy Professor at Macalester College.
+
+# Methods
+Using the results from [Johnstone et al](), [Nishimura et al](https://arxiv.org/abs/2402.15436), [Falstad et al](https://arxiv.org/abs/2102.13563), [Akylas et al](https://arxiv.org/abs/1607.08069), and [U et al](https://arxiv.org/abs/1209.1611), we collected a list of 195 targets and their associated coordinates, redshifts, distances, luminosities, and masses.
+
+Each reference was unique in the variables they reported for their results. For instance, the Akylas et al sample reported names, coordinates, redshifts, and luminosities; while Nishimura et al reported names, redshifts, luminosity distances, and infrared luminosities. The missing values from the joining of the references were found using NED. Luminosity values needed to be converted to the same scale ($\log m_{sun}$). The mass values were found following the proceedure outlined in [Leroy et al](https://arxiv.org/abs/1910.13470), using WISE magnitudes and $\gamma = 0.2$. The final sample was created by removing targets from Akylas et al with CT AGN probabilitites below 90%.
+
+Table 1 shows a statistical summary of the sample distribution across each variable, organized by galaxy type.
+
+```{r, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(readr)
+library(gtsummary)
+library(patchwork)
+library(glue)
+library(fuzzyjoin)
+df <- read_csv("CONTargetList_filled.csv")
+wise <- read_csv("table_irsa_catalog_search_results.csv")
+unique(df$Citation)
+```
+
+```{r, include=FALSE}
+dim(df)
+head(df)
+names(df)
+
+dim(wise)
+head(wise)
+names(wise)
+```
+
+```{r, include=FALSE}
+# crossmatch targets from wise
+wise <- wise %>%
+    rename(wise_ra = ra, wise_dec = dec)
+
+df <- cbind(df, wise)
+
+df$L.wise <- 10^(0.4*(df$w1mpro - 3.26))
+df$m.sun <- 0.2 * df$L.wise
+df$logm <- log10(df$m.sun)
+
+
+# create column of uniform luminosity values
+df <- df %>%
+    mutate(logL = `log(L_IR/L_Sun)`)
+
+df$logL <- ifelse(!is.na(df$`L_IR (E11 Lsun)`), log10(df$`L_IR (E11 Lsun)`) + 11, df$logL)
+df$logL <- ifelse(!is.na(df$`L_14-195keV (E42 ergs/s)`), log10(df$`L_14-195keV (E42 ergs/s)`)+42 - log10(3.9E33), df$logL)
+df$logL <- ifelse(!is.na(df$`log(L_IR) (L_Sun)`), df$`log(L_IR) (L_Sun)`, df$logL)
+
+# rename column names to more uniform convention
+df <- df %>% 
+    rename(name = Name, type = Type, ra = RA_J2000, dec = Dec_J2000, d = `D_L (Mpc)`)
+
+# create target dataframe from the raw data
+targets <- df %>%
+    filter(P_CT >= 0.90 | is.na(P_CT)) %>%
+    select(name, ra, dec, type, z, d, logL, logm)
+```
+
+## TABLE 1
+```{r, echo=FALSE}
+TABLE1 <- targets %>%
+    select(type, logL, logm, z, d, ra, dec) %>%
+    tbl_summary(
+        by = type,
+        statistic = list(all_continuous()  ~ "{mean} : [{median}] : ({sd})",
+                        all_categorical() ~ "{n}    ({p}%)"),
+        ) %>%
+    add_overall(
+        last = FALSE,
+        # The ** make it bold
+        col_label = "**All Types**<br>N = {N}"
+    ) %>%
+    bold_labels() %>%
+    modify_caption("Galaxy Characteristics by Type")
+
+TABLE1
+```
+
+# Results
+## Luminosity, Redshift, Distance, and Mass Distributions
+```{r, echo=FALSE, warning=FALSE}
+p1 <- targets %>%
+    ggplot(aes(y=logL, x=type, fill=type)) +
+    geom_boxplot() +
+    theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        legend.position='none')
+
+p2 <- targets %>%
+    ggplot(aes(y=z, x=type, fill=type)) + 
+    geom_boxplot() + 
+    theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        legend.position='none')
+
+p3 <- targets %>%
+    ggplot(aes(y=d, x=type, fill=type)) + 
+    geom_boxplot() + 
+    theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        legend.position='none') + 
+    ylab("d [Mpc]")
+
+p4 <- targets %>%
+    ggplot(aes(y=logm, x=type, fill=type)) + 
+    geom_boxplot() + 
+    theme(legend.position='none') + 
+    ylab("logm [log M*]")
+
+p1 / p2 / p3 / p4
+```
+
+The primary 
+
+# Data Access
+Data can be access at 
+
+
+<!-- # Analysis
+```{r, echo=FALSE}
+targets %>%
+    ggplot(aes(x=d, y=logL, color=type)) + 
+    geom_point(na.rm=TRUE) +
+    geom_smooth(method="lm", na.rm=TRUE, se=FALSE) +
+    facet_wrap(~type)
+```
+
+## Fitting to a Multiple Linear Regression Model (with Interaction)
+The model:
+$$E[Y | X, Z] = \beta_0 + \beta_1 X + \beta_2 Z + \beta_3 X Z$$
+
+```{r, echo=FALSE}
+target_mlr <- lm(logL ~ d * type, targets)
+r2 <- summary(target_mlr)$r.squared
+glue("r-squared = {r2}")
+coef(summary(target_mlr))
+``` -->
+
